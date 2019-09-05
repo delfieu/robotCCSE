@@ -1,0 +1,109 @@
+#include <MARK.h>
+#define Gauche 0
+#define Droite 180
+#define Face 90
+#define Unit 730
+#define UnitAgulaire 8
+#define Thash 5000  // 250 micro-sec
+#define LedToggle digitalWrite (Led, !digitalRead(Led))
+#define Nmes 5  // on fait 5 mesures ==> Tous les 45 degrés
+#define TServo 1200 // temps approximatif (ms)  que met le servo pour faire 180 degrés
+
+#define Vcour 70
+
+#define Gauche 0
+#define Droite 180
+#define Face 90
+#define BG 2
+#define BD 3
+#define seuilMur 30
+#define devfaible 25
+#define devForte 40
+#define faible 30
+#define forte 50
+
+const byte Led = 13; // LED du module
+volatile int F,R,L,Compteur = 0;  //Compteur pour interruption
+volatile byte dir;
+MARK myrobot; //initialize an instance of the class
+Ultrasonic Front(8); //Init of ultrasonic sensor on pin 8
+Ultrasonic Right(10); //Init of ultrasonic sensor on pin 10
+Ultrasonic Left(12); //Init of ultrasonic sensor on pin 12
+volatile boolean avance,tourne,recule,bump,bd,bg;
+volatile byte deviation,temps;
+
+
+void configTimer2(){
+  TCCR2A = 0;          // Mode normal
+  TCCR2B = (1<<CS22) + (1<<CS21) ; // clkio/256 est incrémenté toutes les 16uS  
+  TIMSK2 = 1<<TOIE2; // TOIE2   
+}
+
+void arret(){myrobot.setRightMotor(0); myrobot.setLeftMotor(0);}
+
+void Deplace(int V){
+  avance=true;
+  tourne=false;
+  recule=false;
+//  if (recule==false) {myrobot.setLcdCursor(0,0);myrobot.lcdPrint("Deplace");}
+//  else {myrobot.setLcdCursor(0,0);myrobot.lcdPrint("Recule");}
+  myrobot.setRightMotor(V);
+  myrobot.setLeftMotor(V);
+}
+
+void DevierDroite(int Dif){
+  avance=true;
+  tourne=false;
+  recule=false;
+//  if (recule==false) {myrobot.setLcdCursor(0,0);myrobot.lcdPrint("Deplace");}
+//  else {myrobot.setLcdCursor(0,0);myrobot.lcdPrint("Recule");}
+  myrobot.setRightMotor(Vcour-Dif);
+  myrobot.setLeftMotor(Vcour );
+}
+
+void Tourne(int dir){
+  tourne=true;
+  recule=false;
+  avance=false;
+//  myrobot.setLcdCursor(0,0);myrobot.lcdPrint("Tourne ");
+  if (dir == Droite) { myrobot.setRightMotor(-Vcour);myrobot.setLeftMotor(Vcour);}
+  else {myrobot.setRightMotor(Vcour);myrobot.setLeftMotor(-Vcour);}  
+}
+
+ISR (TIMER2_OVF_vect) { 
+  TCNT2 = 0;
+  if (tourne) {
+    avance=false;
+    temps++;
+    if (temps == 155) {temps=0;tourne=false;}
+  }    
+  else {
+  switch(Compteur) {  //X*4mS = ?? 
+      case 50 :   F=Front.MeasureInCentimeters(); break;
+      case 100 :  R=Right.MeasureInCentimeters(); break;
+      case 150 :  L=Left.MeasureInCentimeters(); Compteur =0;avance=false;break;
+      default : break;
+   }  
+   Compteur++;
+   recule=false;
+   tourne=false;
+  }
+} 
+
+void setup() {
+  dir=0;deviation=0;
+  avance=true;
+  tourne=false;
+  bump=false;
+  L=100;R=100;F=100;
+  myrobot.begin();
+  configTimer2();
+  Deplace(Vcour);
+  sei();
+}
+
+void loop() {
+    Deplace(Vcour);
+    if (F < seuilMur) Tourne(Gauche);
+    if (R-L>seuilMur) DevierDroite(R-L);
+}
